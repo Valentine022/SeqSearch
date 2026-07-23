@@ -18,9 +18,9 @@ st.set_page_config(
 
 st.title("Sequencing Alignment Pipeline")
 st.write(
-    "Upload a folder of nucleotide `.seq` files, combine them into FASTA, "
-    "optionally align them to a nucleotide reference with minimap2, then run "
-    "BLASTX against a protein reference and report the best hit and amino-acid substitutions."
+    "Upload a folder of nucleotide `.seq` files, a nucleotide FASTA for minimap2, "
+    "and a separate protein FASTA for BLASTX. The app runs minimap2 first, then BLASTX, "
+    "and reports the best protein alignment and amino-acid substitutions."
 )
 
 
@@ -103,6 +103,42 @@ def run_command(command: list[str], timeout: int = 900) -> subprocess.CompletedP
             f"{command[0]} failed:\n{result.stderr.strip() or 'No error details returned.'}"
         )
     return result
+
+
+def parse_minimap_matches(paf_text: str) -> list[dict[str, object]]:
+    rows = []
+    for line in paf_text.splitlines():
+        if not line.strip():
+            continue
+        fields = line.split("\t")
+        if len(fields) < 12:
+            continue
+
+        query_length = int(fields[1])
+        query_start = int(fields[2])
+        query_end = int(fields[3])
+        matching_bases = int(fields[9])
+        block_length = int(fields[10])
+
+        rows.append(
+            {
+                "query": fields[0],
+                "reference": fields[5],
+                "strand": fields[4],
+                "query_coverage_percent": (
+                    100 * (query_end - query_start) / query_length
+                    if query_length
+                    else 0
+                ),
+                "identity_percent": (
+                    100 * matching_bases / block_length
+                    if block_length
+                    else 0
+                ),
+                "mapping_quality": int(fields[11]),
+            }
+        )
+    return rows
 
 
 def parse_blastx(tsv_text: str) -> list[dict[str, object]]:
@@ -220,37 +256,41 @@ def to_tsv(rows: list[dict[str, object]], columns: list[str]) -> bytes:
 
 
 seq_files = st.file_uploader(
-    "Upload the folder containing `.seq` files",
+    "1. Upload the folder containing `.seq` files",
     type=["seq"],
     accept_multiple_files="directory",
     key="seq_directory",
 )
 
-protein_reference = st.file_uploader(
-    "Upload the protein reference FASTA for BLASTX",
-    type=["fasta", "fa", "faa"],
-    key="protein_reference",
+minimap_reference = st.file_uploader(
+    "2. Upload nucleotide reference FASTA for minimap2",
+    type=["fasta", "fa", "fna"],
+    key="minimap_reference",
+    help="This is the DNA reference used by minimap2.",
 )
 
-with st.expander("Optional minimap2 nucleotide-reference alignment"):
-    run_minimap = st.checkbox("Run minimap2 before BLASTX", value=False)
-    nucleotide_reference = st.file_uploader(
-        "Upload nucleotide reference FASTA",
-        type=["fasta", "fa", "fna"],
-        disabled=not run_minimap,
-        key="nucleotide_reference",
-    )
+blast_reference = st.file_uploader(
+    "3. Upload protein reference FASTA for BLASTX",
+    type=["fasta", "fa", "faa"],
+    key="blast_reference",
+    help="This is a separate protein reference used by makeblastdb and blastx.",
+)
 
 with st.sidebar:
-    st.header("BLASTX settings")
+    st.header("Pipeline settings")
+    minimap_preset = st.selectbox(
+        "minimap2 preset",
+        options=["map-ont", "lr:hq", "map-pb"],
+        index=0,
+    )
     evalue_limit = st.number_input(
-        "E-value cutoff",
+        "BLASTX E-value cutoff",
         min_value=0.0,
         value=1e-5,
         format="%.1e",
     )
     max_targets = st.number_input(
-        "Maximum target sequences per query",
+        "BLASTX maximum target sequences",
         min_value=1,
         max_value=100,
         value=10,
@@ -267,95 +307,110 @@ with st.sidebar:
 if seq_files:
     st.write(f"**Sequence files selected:** {len(seq_files)}")
 
-ready = bool(seq_files) and protein_reference is not None
-if run_minimap and nucleotide_reference is None:
-    ready = False
-
-if not ready:
-    st.info("Upload the required files to run the pipeline.")
+if not seq_files or minimap_reference is None or blast_reference is None:
+    st.info(
+        "Upload the `.seq` folder, the nucleotide minimap2 reference, "
+        "and the separate protein BLASTX reference."
+    )
     st.stop()
 
-if st.button("Run sequencing pipeline", type="primary", use_container_width=True):
+if st.button("Run minimap2, then BLASTX", type="primary", use_container_width=True):
     try:
-        with st.spinner("Combining sequences and running alignments..."):
+        with st.spinner("Combining files and running minimap2..."):
             combined_fasta, sequence_summary = combine_seq_files(seq_files)
 
             with tempfile.TemporaryDirectory() as temp_dir:
                 temp = Path(temp_dir)
                 query_path = temp / "combined.fasta"
-                protein_path = temp / "protein_reference.fasta"
+                minimap_ref_path = temp / "minimap_reference.fasta"
+                blast_ref_path = temp / "blast_reference.fasta"
                 db_prefix = temp / "protein_db"
 
                 query_path.write_bytes(combined_fasta)
-                protein_path.write_bytes(protein_reference.getvalue())
+                minimap_ref_path.write_bytes(minimap_reference.getvalue())
+                blast_ref_path.write_bytes(blast_reference.getvalue())
 
-                paf_bytes = None
-                match_bytes = None
+                minimap_result = run_command(
+                    [
+                        "minimap2",
+                        "-x",
+                        minimap_preset,
+                        "-t",
+                        str(int(threads)),
+                        str(minimap_ref_path),
+                        str(query_path),
+                    ]
+                )
 
-                if run_minimap:
-                    nucleotide_path = temp / "nucleotide_reference.fasta"
-                    nucleotide_path.write_bytes(nucleotide_reference.getvalue())
+                paf_text = minimap_result.stdout
+                minimap_rows = parse_minimap_matches(paf_text)
+                minimap_simple = [
+                    {"query": row["query"], "reference": row["reference"]}
+                    for row in minimap_rows
+                ]
 
-                    minimap_result = run_command(
+                with st.spinner("minimap2 complete. Running BLASTX..."):
+                    run_command(
                         [
-                            "minimap2",
-                            "-x",
-                            "map-ont",
-                            "-t",
-                            str(int(threads)),
-                            str(nucleotide_path),
-                            str(query_path),
+                            "makeblastdb",
+                            "-in",
+                            str(blast_ref_path),
+                            "-dbtype",
+                            "prot",
+                            "-out",
+                            str(db_prefix),
                         ]
                     )
-                    paf_bytes = minimap_result.stdout.encode("utf-8")
 
-                    matches = []
-                    for line in minimap_result.stdout.splitlines():
-                        fields = line.split("\t")
-                        if len(fields) >= 6:
-                            matches.append(
-                                {"query": fields[0], "reference": fields[5]}
-                            )
-                    match_bytes = to_tsv(matches, ["query", "reference"])
+                    outfmt = (
+                        "6 qseqid sseqid pident length sstart send "
+                        "qframe qseq sseq evalue bitscore"
+                    )
+                    blast_result = run_command(
+                        [
+                            "blastx",
+                            "-query",
+                            str(query_path),
+                            "-db",
+                            str(db_prefix),
+                            "-evalue",
+                            str(evalue_limit),
+                            "-max_target_seqs",
+                            str(int(max_targets)),
+                            "-num_threads",
+                            str(int(threads)),
+                            "-outfmt",
+                            outfmt,
+                        ]
+                    )
 
-                run_command(
-                    [
-                        "makeblastdb",
-                        "-in",
-                        str(protein_path),
-                        "-dbtype",
-                        "prot",
-                        "-out",
-                        str(db_prefix),
-                    ]
-                )
-
-                outfmt = (
-                    "6 qseqid sseqid pident length sstart send "
-                    "qframe qseq sseq evalue bitscore"
-                )
-                blast_result = run_command(
-                    [
-                        "blastx",
-                        "-query",
-                        str(query_path),
-                        "-db",
-                        str(db_prefix),
-                        "-evalue",
-                        str(evalue_limit),
-                        "-max_target_seqs",
-                        str(int(max_targets)),
-                        "-num_threads",
-                        str(int(threads)),
-                        "-outfmt",
-                        outfmt,
-                    ]
-                )
-
-                blastx_bytes = blast_result.stdout.encode("utf-8")
-                best_hits = parse_blastx(blast_result.stdout)
+                blastx_text = blast_result.stdout
+                best_hits = parse_blastx(blastx_text)
                 substitution_rows = make_substitution_rows(best_hits)
-                substitution_columns = [
+
+        st.session_state["pipeline_results"] = {
+            "combined_fasta": combined_fasta,
+            "sequence_summary": sequence_summary,
+            "paf": paf_text.encode("utf-8"),
+            "minimap_matches": to_tsv(
+                minimap_simple,
+                ["query", "reference"],
+            ),
+            "minimap_detailed": to_tsv(
+                minimap_rows,
+                [
+                    "query",
+                    "reference",
+                    "strand",
+                    "query_coverage_percent",
+                    "identity_percent",
+                    "mapping_quality",
+                ],
+            ),
+            "blastx": blastx_text.encode("utf-8"),
+            "substitutions": to_tsv(
+                substitution_rows,
+                [
                     "sequence",
                     "reference",
                     "frame",
@@ -364,19 +419,9 @@ if st.button("Run sequencing pipeline", type="primary", use_container_width=True
                     "evalue",
                     "bitscore",
                     "mutations",
-                ]
-                substitutions_bytes = to_tsv(
-                    substitution_rows,
-                    substitution_columns,
-                )
-
-        st.session_state["pipeline_results"] = {
-            "combined_fasta": combined_fasta,
-            "sequence_summary": sequence_summary,
-            "paf": paf_bytes,
-            "minimap_matches": match_bytes,
-            "blastx": blastx_bytes,
-            "substitutions": substitutions_bytes,
+                ],
+            ),
+            "minimap_rows": minimap_rows,
             "substitution_rows": substitution_rows,
         }
 
@@ -388,12 +433,26 @@ if "pipeline_results" in st.session_state:
     results = st.session_state["pipeline_results"]
 
     st.success(
-        f"Processed {len(results['sequence_summary'])} sequences; "
-        f"{len(results['substitution_rows'])} had a retained BLASTX hit."
+        f"Processed {len(results['sequence_summary'])} sequences. "
+        f"minimap2 reported {len(results['minimap_rows'])} alignments and "
+        f"BLASTX retained {len(results['substitution_rows'])} best hits."
     )
 
     downloads = [
         ("Combined FASTA", results["combined_fasta"], "combined.fasta", "text/plain"),
+        ("Minimap2 PAF", results["paf"], "aln.paf", "text/plain"),
+        (
+            "Minimap2 matches",
+            results["minimap_matches"],
+            "matches.tsv",
+            "text/tab-separated-values",
+        ),
+        (
+            "Detailed minimap2 matches",
+            results["minimap_detailed"],
+            "minimap_detailed.tsv",
+            "text/tab-separated-values",
+        ),
         ("Raw BLASTX", results["blastx"], "blastx.tsv", "text/tab-separated-values"),
         (
             "Best hits and substitutions",
@@ -402,22 +461,10 @@ if "pipeline_results" in st.session_state:
             "text/tab-separated-values",
         ),
     ]
-    if results["paf"] is not None:
-        downloads.extend(
-            [
-                ("Minimap2 PAF", results["paf"], "aln.paf", "text/plain"),
-                (
-                    "Minimap2 matches",
-                    results["minimap_matches"],
-                    "matches.tsv",
-                    "text/tab-separated-values",
-                ),
-            ]
-        )
 
-    columns = st.columns(min(3, len(downloads)))
+    columns = st.columns(3)
     for index, (label, data, filename, mime) in enumerate(downloads):
-        with columns[index % len(columns)]:
+        with columns[index % 3]:
             st.download_button(
                 f"Download {label}",
                 data=data,
@@ -427,7 +474,13 @@ if "pipeline_results" in st.session_state:
                 use_container_width=True,
             )
 
-    st.subheader("Best BLASTX hits and substitutions")
+    st.subheader("minimap2 matches")
+    if results["minimap_rows"]:
+        st.dataframe(results["minimap_rows"], use_container_width=True)
+    else:
+        st.warning("minimap2 did not report any alignments.")
+
+    st.subheader("Best BLASTX hits and amino-acid substitutions")
     if results["substitution_rows"]:
         st.dataframe(results["substitution_rows"], use_container_width=True)
     else:
