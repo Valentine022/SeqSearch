@@ -1,10 +1,12 @@
 from __future__ import annotations
 import base64
 import csv
+import html
 import io
 import re
 import subprocess
 import tempfile
+from datetime import datetime
 from pathlib import Path
 
 import streamlit as st
@@ -487,6 +489,208 @@ def to_tsv(rows: list[dict[str, object]], columns: list[str]) -> bytes:
     return buffer.getvalue().encode("utf-8")
 
 
+def rows_to_html_table(
+    rows: list[dict[str, object]],
+    columns: list[str],
+    empty_message: str,
+) -> str:
+    """Render rows as a self-contained HTML table."""
+    if not rows:
+        return f'<p class="empty">{html.escape(empty_message)}</p>'
+
+    header = "".join(f"<th>{html.escape(column)}</th>" for column in columns)
+    body_rows = []
+
+    for row in rows:
+        cells = "".join(
+            f"<td>{html.escape(str(row.get(column, '')))}</td>"
+            for column in columns
+        )
+        body_rows.append(f"<tr>{cells}</tr>")
+
+    return (
+        '<div class="table-wrap"><table>'
+        f"<thead><tr>{header}</tr></thead>"
+        f"<tbody>{''.join(body_rows)}</tbody>"
+        "</table></div>"
+    )
+
+
+def build_html_report(
+    *,
+    email: str,
+    sequence_count: int,
+    minimap_rows: list[dict[str, object]],
+    substitution_rows: list[dict[str, object]],
+    minimap_preset: str,
+    evalue_limit: float,
+    max_targets: int,
+) -> bytes:
+    """Build a downloadable standalone HTML summary of the pipeline results."""
+    minimap_columns = [
+        "query",
+        "reference",
+        "strand",
+        "query_coverage_percent",
+        "identity_percent",
+        "mapping_quality",
+    ]
+    substitution_columns = [
+        "sequence",
+        "reference",
+        "frame",
+        "identity",
+        "alignment_length",
+        "evalue",
+        "bitscore",
+        "mutations",
+    ]
+
+    minimap_table = rows_to_html_table(
+        minimap_rows,
+        minimap_columns,
+        "minimap2 did not report any alignments.",
+    )
+    substitutions_table = rows_to_html_table(
+        substitution_rows,
+        substitution_columns,
+        "No BLASTX hits passed the selected settings.",
+    )
+
+    logo_html = get_logo_html()
+    generated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    report = f"""<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sequencing Alignment Report</title>
+<style>
+:root {{
+  --bg: #e8f7f5;
+  --panel: #ffffff;
+  --text: #1c2434;
+  --muted: #667085;
+  --border: #b9dfd8;
+  --accent: #1b8f84;
+}}
+* {{ box-sizing: border-box; }}
+body {{
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}}
+main {{ max-width: 1200px; margin: auto; padding: 32px 20px 60px; }}
+.hero {{
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 24px;
+  margin-bottom: 20px;
+}}
+.hero .evoralis-logo {{
+  width: auto;
+  height: 70px;
+  max-width: 240px;
+  object-fit: contain;
+}}
+.hero h1 {{ margin: 0 0 4px; font-size: 34px; }}
+.meta {{ color: var(--muted); }}
+.cards {{
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}}
+.card, section {{
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 7px 22px rgba(31, 42, 68, .05);
+}}
+.card {{ padding: 18px; }}
+.card .label {{ color: var(--muted); font-size: 13px; }}
+.card .value {{ font-size: 26px; font-weight: 750; margin-top: 4px; }}
+section {{ padding: 22px; margin-top: 18px; }}
+h2 {{ margin-top: 0; }}
+.table-wrap {{ overflow-x: auto; }}
+table {{ width: 100%; border-collapse: collapse; }}
+th, td {{
+  border-bottom: 1px solid var(--border);
+  padding: 9px 11px;
+  text-align: left;
+  white-space: nowrap;
+}}
+th {{ background: #d9efeb; }}
+.empty {{ color: var(--muted); }}
+footer {{ margin-top: 22px; color: var(--muted); font-size: 13px; }}
+@media print {{
+  body {{ background: white; }}
+  main {{ max-width: none; padding: 0; }}
+  .card, section, .hero {{ box-shadow: none; }}
+}}
+</style>
+</head>
+<body>
+<main>
+  <div class="hero">
+    {logo_html}
+    <div>
+      <h1>Sequencing Alignment Report</h1>
+      <div class="meta">
+        <strong>Prepared by:</strong> {html.escape(email or "Unknown user")}<br>
+        <strong>Generated:</strong> {generated_at}
+      </div>
+    </div>
+  </div>
+
+  <div class="cards">
+    <div class="card">
+      <div class="label">Sequences processed</div>
+      <div class="value">{sequence_count}</div>
+    </div>
+    <div class="card">
+      <div class="label">minimap2 alignments</div>
+      <div class="value">{len(minimap_rows)}</div>
+    </div>
+    <div class="card">
+      <div class="label">Best BLASTX hits</div>
+      <div class="value">{len(substitution_rows)}</div>
+    </div>
+  </div>
+
+  <section>
+    <h2>Pipeline settings</h2>
+    <p>
+      <strong>minimap2 preset:</strong> {html.escape(minimap_preset)}<br>
+      <strong>BLASTX E-value cutoff:</strong> {evalue_limit:.3g}<br>
+      <strong>Maximum target sequences:</strong> {max_targets}
+    </p>
+  </section>
+
+  <section>
+    <h2>minimap2 matches</h2>
+    {minimap_table}
+  </section>
+
+  <section>
+    <h2>Best BLASTX hits and amino-acid substitutions</h2>
+    {substitutions_table}
+  </section>
+
+  <footer>Generated by the Evoralis Sequencing Alignment Pipeline.</footer>
+</main>
+</body>
+</html>"""
+
+    return report.encode("utf-8")
+
+
 seq_files = st.file_uploader(
     "1. Upload the folder containing `.seq` files",
     type=["seq"],
@@ -657,6 +861,15 @@ if st.button("Run minimap2, then BLASTX", type="primary", use_container_width=Tr
             ),
             "minimap_rows": minimap_rows,
             "substitution_rows": substitution_rows,
+            "html_report": build_html_report(
+                email=email,
+                sequence_count=len(sequence_summary),
+                minimap_rows=minimap_rows,
+                substitution_rows=substitution_rows,
+                minimap_preset=minimap_preset,
+                evalue_limit=float(evalue_limit),
+                max_targets=int(max_targets),
+            ),
         }
 
     except Exception as exc:
@@ -673,6 +886,12 @@ if "pipeline_results" in st.session_state:
     )
 
     downloads = [
+        (
+            "HTML report",
+            results["html_report"],
+            f"sequencing_alignment_report_{datetime.now().strftime('%Y-%m-%d')}.html",
+            "text/html",
+        ),
         ("Combined FASTA", results["combined_fasta"], "combined.fasta", "text/plain"),
         ("Minimap2 PAF", results["paf"], "aln.paf", "text/plain"),
         (
@@ -707,6 +926,13 @@ if "pipeline_results" in st.session_state:
                 key=f"download_{index}",
                 use_container_width=True,
             )
+
+    st.subheader("HTML report preview")
+    st.components.v1.html(
+        results["html_report"].decode("utf-8", errors="replace"),
+        height=900,
+        scrolling=True,
+    )
 
     st.subheader("minimap2 matches")
     if results["minimap_rows"]:
