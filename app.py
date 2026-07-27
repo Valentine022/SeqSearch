@@ -248,6 +248,7 @@ def parse_minimap_matches(paf_text: str) -> list[dict[str, object]]:
 
 
 def parse_blastx(tsv_text: str) -> list[dict[str, object]]:
+    """Keep the single best protein-reference alignment for each query sequence."""
     best_hits: dict[str, dict[str, object]] = {}
 
     for line_number, line in enumerate(tsv_text.splitlines(), start=1):
@@ -255,10 +256,10 @@ def parse_blastx(tsv_text: str) -> list[dict[str, object]]:
             continue
 
         row = line.split("\t")
-        if len(row) != 11:
+        if len(row) != 13:
             raise ValueError(
                 f"Unexpected BLASTX output on line {line_number}: "
-                f"expected 11 fields, found {len(row)}."
+                f"expected 13 fields, found {len(row)}."
             )
 
         (
@@ -266,6 +267,8 @@ def parse_blastx(tsv_text: str) -> list[dict[str, object]]:
             subject_id,
             percent_identity,
             alignment_length,
+            query_start,
+            query_end,
             subject_start,
             subject_end,
             query_frame,
@@ -278,6 +281,8 @@ def parse_blastx(tsv_text: str) -> list[dict[str, object]]:
         hit = {
             "query_id": query_id,
             "subject_id": subject_id,
+            "query_start": int(query_start),
+            "query_end": int(query_end),
             "subject_start": int(subject_start),
             "subject_end": int(subject_end),
             "query_frame": int(query_frame),
@@ -290,16 +295,27 @@ def parse_blastx(tsv_text: str) -> list[dict[str, object]]:
         }
 
         previous = best_hits.get(query_id)
-        if previous is None or (
+
+        # BLAST bit score is the primary measure of alignment quality.
+        # Ties are resolved by E-value, alignment length, and identity.
+        hit_rank = (
             hit["bitscore"],
             -hit["evalue"],
+            hit["alignment_length"],
             hit["percent_identity"],
-        ) > (
-            previous["bitscore"],
-            -previous["evalue"],
-            previous["percent_identity"],
-        ):
+        )
+
+        if previous is None:
             best_hits[query_id] = hit
+        else:
+            previous_rank = (
+                previous["bitscore"],
+                -previous["evalue"],
+                previous["alignment_length"],
+                previous["percent_identity"],
+            )
+            if hit_rank > previous_rank:
+                best_hits[query_id] = hit
 
     return [best_hits[key] for key in sorted(best_hits)]
 
@@ -469,7 +485,7 @@ if st.button("Run minimap2, then BLASTX", type="primary", use_container_width=Tr
                     )
 
                     outfmt = (
-                        "6 qseqid sseqid pident length sstart send "
+                        "6 qseqid sseqid pident length qstart qend sstart send "
                         "qframe qseq sseq evalue bitscore"
                     )
                     blast_result = run_command(
@@ -483,6 +499,8 @@ if st.button("Run minimap2, then BLASTX", type="primary", use_container_width=Tr
                             str(evalue_limit),
                             "-max_target_seqs",
                             str(int(max_targets)),
+                            "-max_hsps",
+                            "1",
                             "-num_threads",
                             str(int(threads)),
                             "-outfmt",
