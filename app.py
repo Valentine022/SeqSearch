@@ -16,6 +16,112 @@ st.set_page_config(
     layout="wide",
 )
 
+# --------------------------------------------------
+# Access settings
+# --------------------------------------------------
+
+ALLOWED_DOMAIN = "evoralis.com"
+
+# Add manually approved Google-account email addresses here.
+ALLOWED_EMAILS = {
+    "asha.webb@evoralis.com",
+    "valentine.patterson@evoralis.com",
+}
+
+
+def get_user_value(name: str, default=None):
+    """Read a claim from st.user safely."""
+    try:
+        value = getattr(st.user, name)
+        if value is not None:
+            return value
+    except Exception:
+        pass
+
+    try:
+        return st.user.get(name, default)
+    except Exception:
+        return default
+
+
+def claim_is_true(value) -> bool:
+    """Convert a Google/OIDC boolean claim safely."""
+    if isinstance(value, str):
+        return value.strip().lower() == "true"
+    return bool(value)
+
+
+# --------------------------------------------------
+# Authentication
+# --------------------------------------------------
+
+if not st.user.is_logged_in:
+    st.title("Sequencing Alignment Pipeline")
+    st.write(
+        "Upload a folder of nucleotide `.seq` files, a nucleotide FASTA for minimap2, "
+        "and a separate protein FASTA for BLASTX. The app runs minimap2 first, then BLASTX, "
+        "and reports the best protein alignment and amino-acid substitutions."
+    )
+
+    st.info("Sign in with Google to continue.")
+
+    if st.button(
+        "Sign in with Google",
+        key="google_login_button",
+        type="primary",
+        use_container_width=True,
+    ):
+        st.login()
+
+    st.stop()
+
+
+email = str(get_user_value("email", "") or "").strip().lower()
+email_verified = claim_is_true(get_user_value("email_verified", False))
+
+allowed_emails = {
+    address.strip().lower()
+    for address in ALLOWED_EMAILS
+    if address.strip()
+}
+
+is_authorised = (
+    email_verified
+    and (
+        email.endswith(f"@{ALLOWED_DOMAIN}")
+        or email in allowed_emails
+    )
+)
+
+if not is_authorised:
+    st.error(
+        "Access denied. Your Google account is not authorised to use this application."
+    )
+
+    if email:
+        st.write(f"Signed-in email: **{email}**")
+
+    if st.button(
+        "Sign out",
+        key="unauthorised_logout_button",
+        use_container_width=True,
+    ):
+        st.logout()
+
+    st.stop()
+
+
+with st.sidebar:
+    st.success(f"Signed in as {email}")
+
+    if st.button(
+        "Sign out",
+        key="authorised_logout_button",
+        use_container_width=True,
+    ):
+        st.logout()
+
+
 st.title("Sequencing Alignment Pipeline")
 st.write(
     "Upload a folder of nucleotide `.seq` files, a nucleotide FASTA for minimap2, "
