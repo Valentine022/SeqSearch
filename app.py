@@ -235,7 +235,6 @@ with st.sidebar:
         st.logout()
 
 
-st.title("Sequencing Alignment Pipeline")
 apply_branding(
     "Sequencing Alignment Pipeline",
     "Upload nucleotide sequences, analyse matches and identify mutations.",
@@ -885,13 +884,19 @@ if "pipeline_results" in st.session_state:
         f"BLASTX retained {len(results['substitution_rows'])} best hits."
     )
 
+    st.subheader("Report")
+
+    st.download_button(
+        "Download HTML report",
+        data=results["html_report"],
+        file_name=f"sequencing_alignment_report_{datetime.now().strftime('%Y-%m-%d')}.html",
+        mime="text/html",
+        key="download_html_report",
+        type="primary",
+        use_container_width=True,
+    )
+
     downloads = [
-        (
-            "HTML report",
-            results["html_report"],
-            f"sequencing_alignment_report_{datetime.now().strftime('%Y-%m-%d')}.html",
-            "text/html",
-        ),
         ("Combined FASTA", results["combined_fasta"], "combined.fasta", "text/plain"),
         ("Minimap2 PAF", results["paf"], "aln.paf", "text/plain"),
         (
@@ -915,6 +920,7 @@ if "pipeline_results" in st.session_state:
         ),
     ]
 
+    st.subheader("Other downloads")
     columns = st.columns(3)
     for index, (label, data, filename, mime) in enumerate(downloads):
         with columns[index % 3]:
@@ -926,13 +932,6 @@ if "pipeline_results" in st.session_state:
                 key=f"download_{index}",
                 use_container_width=True,
             )
-
-    st.subheader("HTML report preview")
-    st.components.v1.html(
-        results["html_report"].decode("utf-8", errors="replace"),
-        height=900,
-        scrolling=True,
-    )
 
     st.subheader("minimap2 matches")
     if results["minimap_rows"]:
