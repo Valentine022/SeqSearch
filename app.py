@@ -525,7 +525,7 @@ def build_html_report(
     evalue_limit: float,
     max_targets: int,
 ) -> bytes:
-    """Build a downloadable standalone HTML summary of the pipeline results."""
+    """Build a standalone HTML report matching the Plate QC report style."""
     minimap_columns = [
         "query",
         "reference",
@@ -568,7 +568,7 @@ def build_html_report(
 <style>
 :root {{
   --bg: #e8f7f5;
-  --panel: #ffffff;
+  --panel: #f9fffe;
   --text: #1c2434;
   --muted: #667085;
   --border: #b9dfd8;
@@ -581,106 +581,161 @@ body {{
   color: var(--text);
   font: 15px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }}
-main {{ max-width: 1200px; margin: auto; padding: 32px 20px 60px; }}
-.hero {{
+main {{ max-width: 1250px; margin: auto; padding: 90px 20px 60px; }}
+.topnav {{
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 12px 20px;
+  background: #f0e8f7;
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(8px);
+}}
+.topnav a {{
+  color: var(--text);
+  text-decoration: none;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: #9370DB;
+  font-weight: 650;
+}}
+.report-header {{
   display: flex;
   align-items: center;
-  gap: 24px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  padding: 24px;
+  justify-content: space-between;
+  gap: 30px;
   margin-bottom: 20px;
 }}
-.hero .evoralis-logo {{
+.report-header .evoralis-logo {{
   width: auto;
-  height: 70px;
-  max-width: 240px;
+  height: 140px;
+  max-width: 320px;
   object-fit: contain;
 }}
-.hero h1 {{ margin: 0 0 4px; font-size: 34px; }}
-.meta {{ color: var(--muted); }}
+.report-title {{
+  text-align: right;
+}}
+h1 {{ margin: 0 0 5px; font-size: 38px; }}
+.subtitle {{ color: var(--muted); margin-bottom: 24px; }}
 .cards {{
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 14px;
-  margin-bottom: 20px;
+  margin-top: 18px;
 }}
-.card, section {{
+.card, section, details {{
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 14px;
-  box-shadow: 0 7px 22px rgba(31, 42, 68, .05);
+  box-shadow: 0 7px 22px rgba(31, 42, 68, .06);
 }}
 .card {{ padding: 18px; }}
 .card .label {{ color: var(--muted); font-size: 13px; }}
-.card .value {{ font-size: 26px; font-weight: 750; margin-top: 4px; }}
-section {{ padding: 22px; margin-top: 18px; }}
-h2 {{ margin-top: 0; }}
+.card .value {{ font-size: 27px; font-weight: 750; margin-top: 3px; }}
+section {{ margin-top: 18px; padding: 22px; }}
+details {{ margin-top: 18px; }}
+summary {{
+  cursor: pointer;
+  padding: 18px 22px;
+  font-size: 20px;
+  font-weight: 750;
+}}
+details .content {{ padding: 0 22px 22px; }}
 .table-wrap {{ overflow-x: auto; }}
-table {{ width: 100%; border-collapse: collapse; }}
+table {{
+  border-collapse: collapse;
+  width: 100%;
+}}
 th, td {{
   border-bottom: 1px solid var(--border);
   padding: 9px 11px;
-  text-align: left;
+  text-align: right;
   white-space: nowrap;
 }}
-th {{ background: #d9efeb; }}
-.empty {{ color: var(--muted); }}
-footer {{ margin-top: 22px; color: var(--muted); font-size: 13px; }}
+th {{
+  background: #b9dfd8 !important;
+  color: #1c2434 !important;
+}}
+th:first-child, td:first-child {{ text-align: left; }}
+.note, .empty {{ color: var(--muted); }}
+footer {{ margin-top: 20px; color: var(--muted); font-size: 13px; }}
+@media (max-width: 700px) {{
+  .report-header {{
+    align-items: flex-start;
+    flex-direction: column;
+  }}
+  .report-title {{ text-align: left; }}
+  .report-header .evoralis-logo {{ height: 90px; }}
+}}
 @media print {{
-  body {{ background: white; }}
-  main {{ max-width: none; padding: 0; }}
-  .card, section, .hero {{ box-shadow: none; }}
+  .topnav {{ display: none; }}
+  main {{ padding-top: 20px; }}
+  details {{ display: block; }}
+  details > * {{ display: block; }}
 }}
 </style>
 </head>
 <body>
+<nav class="topnav">
+  <a href="#summary">Summary</a>
+  <a href="#settings">Settings</a>
+  <a href="#minimap">minimap2 Matches</a>
+  <a href="#blastx">BLASTX Results</a>
+</nav>
+
 <main>
-  <div class="hero">
+  <div class="report-header">
     {logo_html}
-    <div>
+    <div class="report-title">
       <h1>Sequencing Alignment Report</h1>
-      <div class="meta">
+      <div class="subtitle">
         <strong>Prepared by:</strong> {html.escape(email or "Unknown user")}<br>
-        <strong>Generated:</strong> {generated_at}
+        <strong>Report generated:</strong> {generated_at}
       </div>
     </div>
   </div>
 
-  <div class="cards">
-    <div class="card">
-      <div class="label">Sequences processed</div>
-      <div class="value">{sequence_count}</div>
+  <section id="summary">
+    <h2>Pipeline summary</h2>
+    <div class="cards">
+      <div class="card">
+        <div class="label">Sequences processed</div>
+        <div class="value">{sequence_count}</div>
+      </div>
+      <div class="card">
+        <div class="label">minimap2 alignments</div>
+        <div class="value">{len(minimap_rows)}</div>
+      </div>
+      <div class="card">
+        <div class="label">Best BLASTX hits</div>
+        <div class="value">{len(substitution_rows)}</div>
+      </div>
     </div>
-    <div class="card">
-      <div class="label">minimap2 alignments</div>
-      <div class="value">{len(minimap_rows)}</div>
-    </div>
-    <div class="card">
-      <div class="label">Best BLASTX hits</div>
-      <div class="value">{len(substitution_rows)}</div>
-    </div>
-  </div>
+  </section>
 
-  <section>
-    <h2>Pipeline settings</h2>
-    <p>
+  <details id="settings" open>
+    <summary>Pipeline settings</summary>
+    <div class="content">
       <strong>minimap2 preset:</strong> {html.escape(minimap_preset)}<br>
       <strong>BLASTX E-value cutoff:</strong> {evalue_limit:.3g}<br>
       <strong>Maximum target sequences:</strong> {max_targets}
-    </p>
-  </section>
+    </div>
+  </details>
 
-  <section>
-    <h2>minimap2 matches</h2>
-    {minimap_table}
-  </section>
+  <details id="minimap" open>
+    <summary>minimap2 matches</summary>
+    <div class="content">{minimap_table}</div>
+  </details>
 
-  <section>
-    <h2>Best BLASTX hits and amino-acid substitutions</h2>
-    {substitutions_table}
-  </section>
+  <details id="blastx" open>
+    <summary>Best BLASTX hits and amino-acid substitutions</summary>
+    <div class="content">{substitutions_table}</div>
+  </details>
 
   <footer>Generated by the Evoralis Sequencing Alignment Pipeline.</footer>
 </main>
