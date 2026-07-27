@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+import base64
 import csv
 import io
 import re
@@ -50,17 +50,128 @@ def claim_is_true(value) -> bool:
         return value.strip().lower() == "true"
     return bool(value)
 
+def get_logo_html() -> str:
+    """Load the Evoralis logo from the same directory as this app."""
+    app_directory = Path(__file__).resolve().parent
+
+    possible_logos = [
+        app_directory / "EvoralisLogo.png",
+        app_directory / "cropped-cropped-0_Evoralis_logo_for-emails_final_v2.png",
+    ]
+
+    for logo_path in possible_logos:
+        if logo_path.exists():
+            encoded_logo = base64.b64encode(
+                logo_path.read_bytes()
+            ).decode("ascii")
+
+            return (
+                f'<img class="evoralis-logo" '
+                f'src="data:image/png;base64,{encoded_logo}" '
+                f'alt="Evoralis">'
+            )
+
+    return ""
+
+
+def apply_branding(
+    title: str,
+    subtitle: str,
+    *,
+    narrow: bool = False,
+) -> None:
+    """Apply the Plate QC colour scheme, layout and logo."""
+    maximum_width = "900px" if narrow else "1200px"
+    logo_html = get_logo_html()
+
+    st.markdown(
+        f"""
+        <style>
+          .stApp {{
+            background: #e8f7f5;
+          }}
+
+          .block-container {{
+            max-width: {maximum_width};
+            padding-top: 2rem;
+            padding-bottom: 3rem;
+          }}
+
+          .hero {{
+            display: flex;
+            align-items: center;
+            gap: 1.4rem;
+            background: white;
+            border: 1px solid #b9dfd8;
+            border-radius: 18px;
+            padding: 1.4rem 1.6rem;
+            margin-bottom: 1.2rem;
+          }}
+
+          .hero-text {{
+            flex: 1;
+          }}
+
+          .hero h1 {{
+            margin: 0;
+          }}
+
+          .hero p {{
+            margin: .4rem 0 0 0;
+          }}
+
+          .evoralis-logo {{
+            width: auto;
+            height: 70px;
+            max-width: 220px;
+            object-fit: contain;
+          }}
+
+          [data-testid="stSidebar"] {{
+            background: #f4fbfa;
+            border-right: 1px solid #b9dfd8;
+          }}
+
+          div[data-testid="stFileUploader"] {{
+            background: white;
+            border: 1px solid #b9dfd8;
+            border-radius: 14px;
+            padding: 0.8rem;
+          }}
+
+          div[data-testid="stDataFrame"] {{
+            background: white;
+            border: 1px solid #b9dfd8;
+            border-radius: 14px;
+            overflow: hidden;
+          }}
+
+          div.stButton > button,
+          div.stDownloadButton > button {{
+            border-radius: 10px;
+          }}
+        </style>
+
+        <div class="hero">
+          {logo_html}
+          <div class="hero-text">
+            <h1>{title}</h1>
+            <p>{subtitle}</p>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 # --------------------------------------------------
 # Authentication
 # --------------------------------------------------
 
 if not st.user.is_logged_in:
-    st.title("Sequencing Alignment Pipeline")
-    st.write(
-        "Upload a folder of nucleotide `.seq` files, a nucleotide FASTA for minimap2, "
-        "and a separate protein FASTA for BLASTX. The app runs minimap2 first, then BLASTX, "
-        "and reports the best protein alignment and amino-acid substitutions."
+    apply_branding(
+        "Sequencing Alignment Pipeline",
+        "This private tool is available to authorised users.",
+        narrow=True,
     )
 
     st.info("Sign in with Google to continue.")
@@ -123,10 +234,9 @@ with st.sidebar:
 
 
 st.title("Sequencing Alignment Pipeline")
-st.write(
-    "Upload a folder of nucleotide `.seq` files, a nucleotide FASTA for minimap2, "
-    "and a separate protein FASTA for BLASTX. The app runs minimap2 first, then BLASTX, "
-    "and reports the best protein alignment and amino-acid substitutions."
+apply_branding(
+    "Sequencing Alignment Pipeline",
+    "Upload nucleotide sequences, analyse matches and identify mutations.",
 )
 
 
