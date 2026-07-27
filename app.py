@@ -514,7 +514,7 @@ if st.button("Run minimap2, then BLASTX", type="primary", use_container_width=Tr
 
         st.session_state["pipeline_results"] = {
             "combined_fasta": combined_fasta,
-            "sequence_summary": sequence_summary,
+            "sequence_count": len(sequence_summary),
             "paf": paf_text.encode("utf-8"),
             "minimap_matches": to_tsv(
                 minimap_simple,
@@ -557,7 +557,7 @@ if "pipeline_results" in st.session_state:
     results = st.session_state["pipeline_results"]
 
     st.success(
-        f"Processed {len(results['sequence_summary'])} sequences. "
+        f"Processed {results['sequence_count']} sequences. "
         f"minimap2 reported {len(results['minimap_rows'])} alignments and "
         f"BLASTX retained {len(results['substitution_rows'])} best hits."
     )
@@ -609,6 +609,3 @@ if "pipeline_results" in st.session_state:
         st.dataframe(results["substitution_rows"], use_container_width=True)
     else:
         st.warning("No BLASTX hits passed the selected settings.")
-
-    with st.expander("Uploaded sequence summary"):
-        st.dataframe(results["sequence_summary"], use_container_width=True)
