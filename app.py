@@ -267,6 +267,14 @@ def safe_record_name(filename: str) -> str:
     return name or "unnamed_sequence"
 
 
+def safe_filename_part(value: str) -> str:
+    """Convert user-entered text into a safe filename component."""
+    value = re.sub(r"\s+", "_", value.strip())
+    value = re.sub(r"[^A-Za-z0-9._-]", "_", value)
+    value = re.sub(r"_+", "_", value).strip("._-")
+    return value or "sample"
+
+
 def read_sequence(raw: bytes, filename: str) -> str:
     try:
         text = raw.decode("utf-8-sig")
@@ -534,6 +542,7 @@ def rows_to_html_table(
 def build_html_report(
     *,
     email: str,
+    sample_name: str,
     sequence_count: int,
     minimap_rows: list[dict[str, object]],
     substitution_rows: list[dict[str, object]],
@@ -706,6 +715,7 @@ footer {{ margin-top: 20px; color: var(--muted); font-size: 13px; }}
       <h1>Sequencing Alignment Report</h1>
       <div class="subtitle">
         <strong>Prepared by:</strong> {html.escape(email or "Unknown user")}<br>
+        <strong>Sample:</strong> {html.escape(sample_name)}<br>
         <strong>Report generated:</strong> {generated_at}
       </div>
     </div>
@@ -727,6 +737,12 @@ footer {{ margin-top: 20px; color: var(--muted); font-size: 13px; }}
 
     return report.encode("utf-8")
 
+
+sample_name = st.text_input(
+    "Sample name",
+    placeholder="e.g. Enzyme_variant_01",
+    help="Shown in the report and used in the downloaded report filename.",
+)
 
 seq_files = st.file_uploader(
     "1. Upload the folder containing `.seq` files",
@@ -772,10 +788,10 @@ with st.sidebar:
 if seq_files:
     st.write(f"**Sequence files selected:** {len(seq_files)}")
 
-if not seq_files or minimap_reference is None or blast_reference is None:
+if not sample_name.strip() or not seq_files or minimap_reference is None or blast_reference is None:
     st.info(
-        "Upload the `.seq` folder, the nucleotide minimap2 reference, "
-        "and the separate protein BLASTX reference."
+        "Enter a sample name, then upload the `.seq` folder, the nucleotide "
+        "minimap2 reference, and the separate protein BLASTX reference."
     )
     st.stop()
 
@@ -855,7 +871,12 @@ if st.button("Run sequence identification analysis, then identify potential muta
                 best_hits = parse_blastx(blastx_text)
                 substitution_rows = make_substitution_rows(best_hits)
 
+        report_date = datetime.now().strftime("%Y-%m-%d")
+        safe_sample_name = safe_filename_part(sample_name)
+
         st.session_state["pipeline_results"] = {
+            "sample_name": sample_name.strip(),
+            "report_filename": f"{report_date}_{safe_sample_name}_sequencing_alignment_report.html",
             "combined_fasta": combined_fasta,
             "sequence_count": len(sequence_summary),
             "paf": paf_text.encode("utf-8"),
@@ -887,6 +908,7 @@ if st.button("Run sequence identification analysis, then identify potential muta
             "substitution_rows": substitution_rows,
             "html_report": build_html_report(
                 email=email,
+                sample_name=sample_name.strip(),
                 sequence_count=len(sequence_summary),
                 minimap_rows=minimap_rows,
                 substitution_rows=substitution_rows,
@@ -912,7 +934,7 @@ if "pipeline_results" in st.session_state:
     st.download_button(
         "Download HTML report",
         data=results["html_report"],
-        file_name=f"sequencing_alignment_report_{datetime.now().strftime('%Y-%m-%d')}.html",
+        file_name=results["report_filename"],
         mime="text/html",
         key="download_html_report",
         type="primary",
