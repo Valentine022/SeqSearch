@@ -25,7 +25,19 @@ st.set_page_config(
 ALLOWED_DOMAIN = "evoralis.com"
 
 # Add manually approved Google-account email addresses here.
-ALLOWED_EMAILS = {
+ALLOWED_EMAILS = {"daniel.kaute@evoralis.com",
+                  "mariana.rangel@evoralis.com",
+                  "josephin.holstein@evoralis.com",
+                  "tom.ogden@evoralis.com",
+                  "devanshi.singh@evoralis.com",
+                  "simona.pilotto@evoralis.com",
+                  "elizabeth.nganga@evoralis.com",
+                  "marcus.bage@evoralis.com",
+                  "adam.roberts@evoralis.com",
+                  "david.miranda@evoralis.com",
+                  "elizabeth.nganga@evoralis.com",
+                  "dylan.george@evoralis.com",
+                  "michaela.buerdsell@evoralis.com",
     "asha.webb@evoralis.com",
     "valentine.patterson@evoralis.com",
 }
@@ -132,7 +144,7 @@ def apply_branding(
 
           .evoralis-logo {{
             width: auto;
-            height: 70px;
+            height: 80px;
             max-width: 220px;
             object-fit: contain;
           }}
