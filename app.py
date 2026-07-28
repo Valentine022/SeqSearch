@@ -848,10 +848,8 @@ if st.button("Run sequence identification analysis, then identify potential muta
                 [
                     "query",
                     "reference",
-                    "strand",
                     "query_coverage_percent",
                     "identity_percent",
-                    "mapping_quality",
                 ],
             ),
             "blastx": blastx_text.encode("utf-8"),
@@ -907,13 +905,13 @@ if "pipeline_results" in st.session_state:
         ("Combined FASTA", results["combined_fasta"], "combined.fasta", "text/plain"),
         ("Minimap2 PAF", results["paf"], "aln.paf", "text/plain"),
         (
-            "Minimap2 matches",
+            "Sequence Matches",
             results["minimap_matches"],
             "matches.tsv",
             "text/tab-separated-values",
         ),
         (
-            "Detailed minimap2 matches",
+            "Detailed sequence matches",
             results["minimap_detailed"],
             "minimap_detailed.tsv",
             "text/tab-separated-values",
@@ -942,7 +940,18 @@ if "pipeline_results" in st.session_state:
 
     st.subheader("minimap2 matches")
     if results["minimap_rows"]:
-        st.dataframe(results["minimap_rows"], use_container_width=True)
+        st.dataframe(
+    [
+        {
+            "query": row["query"],
+            "reference": row["reference"],
+            "query_coverage_percent": row["query_coverage_percent"],
+            "identity_percent": row["identity_percent"],
+        }
+        for row in results["minimap_rows"]
+    ],
+    use_container_width=True,
+)
     else:
         st.warning("minimap2 did not report any alignments.")
 
