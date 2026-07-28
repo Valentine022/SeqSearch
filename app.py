@@ -901,44 +901,18 @@ if "pipeline_results" in st.session_state:
         use_container_width=True,
     )
 
-    downloads = [
-        ("Combined FASTA", results["combined_fasta"], "combined.fasta", "text/plain"),
-        ("Minimap2 PAF", results["paf"], "aln.paf", "text/plain"),
-        (
-            "Sequence Matches",
-            results["minimap_matches"],
-            "matches.tsv",
-            "text/tab-separated-values",
-        ),
-        (
-            "Detailed sequence matches",
-            results["minimap_detailed"],
-            "minimap_detailed.tsv",
-            "text/tab-separated-values",
-        ),
-        ("Raw BLASTX", results["blastx"], "blastx.tsv", "text/tab-separated-values"),
-        (
-            "Best hits and substitutions",
-            results["substitutions"],
-            "amino_acid_substitutions.tsv",
-            "text/tab-separated-values",
-        ),
-    ]
+st.subheader("Other downloads")
 
-    st.subheader("Other downloads")
-    columns = st.columns(3)
-    for index, (label, data, filename, mime) in enumerate(downloads):
-        with columns[index % 3]:
-            st.download_button(
-                f"Download {label}",
-                data=data,
-                file_name=filename,
-                mime=mime,
-                key=f"download_{index}",
-                use_container_width=True,
-            )
+st.download_button(
+    "Download Combined FASTA",
+    data=results["combined_fasta"],
+    file_name="combined.fasta",
+    mime="text/plain",
+    key="download_combined_fasta",
+    use_container_width=True,
+)
 
-    st.subheader("minimap2 matches")
+    st.subheader("Sequence Matches")
     if results["minimap_rows"]:
         st.dataframe(
     [
@@ -953,10 +927,10 @@ if "pipeline_results" in st.session_state:
     use_container_width=True,
 )
     else:
-        st.warning("minimap2 did not report any alignments.")
+        st.warning("No alignments reported.")
 
-    st.subheader("Best BLASTX hits and amino-acid substitutions")
+    st.subheader("Amino-acid substitutions")
     if results["substitution_rows"]:
         st.dataframe(results["substitution_rows"], use_container_width=True)
     else:
-        st.warning("No BLASTX hits passed the selected settings.")
+        st.warning("No hits passed the selected settings.")
