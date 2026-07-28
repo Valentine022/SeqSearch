@@ -758,7 +758,13 @@ with st.sidebar:
         value=1,
         step=1,
     )
-
+    threads = st.number_input(
+        "Threads",
+        min_value=1,
+        max_value=2,
+        value=2,
+        step=1,
+    )
 
 if seq_files:
     st.write(f"**Sequence files selected:** {len(seq_files)}")
