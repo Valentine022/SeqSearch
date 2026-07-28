@@ -93,9 +93,17 @@ def apply_branding(
             background: #e8f7f5;
           }}
 
+          header[data-testid="stHeader"],
+          [data-testid="stToolbar"],
+          [data-testid="stDecoration"],
+          #MainMenu {{
+            display: none !important;
+            height: 0 !important;
+          }}
+
           .block-container {{
             max-width: {maximum_width};
-            padding-top: 2rem;
+            padding-top: 0.75rem;
             padding-bottom: 3rem;
           }}
 
@@ -124,7 +132,7 @@ def apply_branding(
 
           .evoralis-logo {{
             width: auto;
-            height: 80px;
+            height: 70px;
             max-width: 220px;
             object-fit: contain;
           }}
@@ -885,6 +893,8 @@ if "pipeline_results" in st.session_state:
 
     st.success(
         f"Processed {results['sequence_count']} sequences. "
+        f"minimap2 reported {len(results['minimap_rows'])} alignments and "
+        f"BLASTX retained {len(results['substitution_rows'])} best hits."
     )
 
     st.subheader("Report")
