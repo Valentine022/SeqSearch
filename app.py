@@ -739,12 +739,6 @@ blast_reference = st.file_uploader(
 )
 
 with st.sidebar:
-    st.header("Pipeline settings")
-    minimap_preset = st.selectbox(
-        "minimap2 preset",
-        options=["map-ont", "lr:hq", "map-pb"],
-        index=0,
-    )
     evalue_limit = st.number_input(
         "BLASTX E-value cutoff",
         min_value=0.0,
@@ -755,7 +749,7 @@ with st.sidebar:
         "BLASTX maximum target sequences",
         min_value=1,
         max_value=100,
-        value=10,
+        value=1,
         step=1,
     )
 
@@ -770,7 +764,7 @@ if not seq_files or minimap_reference is None or blast_reference is None:
     )
     st.stop()
 
-if st.button("Run minimap2, then BLASTX", type="primary", use_container_width=True):
+if st.button("Run sequence identification analysis, then identify potential mutations", type="primary", use_container_width=True):
     try:
         with st.spinner("Combining files and running minimap2..."):
             combined_fasta, sequence_summary = combine_seq_files(seq_files)
