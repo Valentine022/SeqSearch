@@ -456,11 +456,8 @@ def make_substitution_rows(best_hits: list[dict[str, object]]) -> list[dict[str,
             {
                 "sequence": hit["query_id"],
                 "reference": hit["subject_id"],
-                "frame": hit["query_frame"],
                 "identity": f'{hit["percent_identity"]:.2f}',
                 "alignment_length": hit["alignment_length"],
-                "evalue": f'{hit["evalue"]:.3g}',
-                "bitscore": f'{hit["bitscore"]:.2f}',
                 "mutations": call_substitutions(hit),
             }
         )
@@ -530,11 +527,8 @@ def build_html_report(
     substitution_columns = [
         "sequence",
         "reference",
-        "frame",
         "identity",
         "alignment_length",
-        "evalue",
-        "bitscore",
         "mutations",
     ]
 
@@ -733,10 +727,7 @@ blast_reference = st.file_uploader(
 
 with st.sidebar:
     st.header("Pipeline settings")
-    minimap_preset = st.selectbox(
-        "minimap2 preset",
-        options=["map-ont", "lr:hq", "map-pb"],
-        index=0,
+    minimap_preset = "map-ont"
     )
     evalue_limit = st.number_input(
         "BLASTX E-value cutoff",
@@ -751,13 +742,7 @@ with st.sidebar:
         value=1,
         step=1,
     )
-    threads = st.number_input(
-        "Threads",
-        min_value=1,
-        max_value=2,
-        value=2,
-        step=1,
-    )
+    threads = 2
 
 if seq_files:
     st.write(f"**Sequence files selected:** {len(seq_files)}")
