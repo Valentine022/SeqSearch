@@ -124,7 +124,7 @@ def apply_branding(
 
           .evoralis-logo {{
             width: auto;
-            height: 0px;
+            height: 80px;
             max-width: 220px;
             object-fit: contain;
           }}
@@ -885,8 +885,6 @@ if "pipeline_results" in st.session_state:
 
     st.success(
         f"Processed {results['sequence_count']} sequences. "
-        f"minimap2 reported {len(results['minimap_rows'])} alignments and "
-        f"BLASTX retained {len(results['substitution_rows'])} best hits."
     )
 
     st.subheader("Report")
