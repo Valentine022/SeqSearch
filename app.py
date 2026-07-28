@@ -739,6 +739,12 @@ blast_reference = st.file_uploader(
 )
 
 with st.sidebar:
+    st.header("Pipeline settings")
+    minimap_preset = st.selectbox(
+        "minimap2 preset",
+        options=["map-ont", "lr:hq", "map-pb"],
+        index=0,
+    )
     evalue_limit = st.number_input(
         "BLASTX E-value cutoff",
         min_value=0.0,
