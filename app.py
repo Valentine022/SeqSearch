@@ -525,10 +525,8 @@ def build_html_report(
     minimap_columns = [
         "query",
         "reference",
-        "strand",
         "query_coverage_percent",
         "identity_percent",
-        "mapping_quality",
     ]
     substitution_columns = [
         "sequence",
