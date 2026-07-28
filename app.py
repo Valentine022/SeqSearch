@@ -124,7 +124,7 @@ def apply_branding(
 
           .evoralis-logo {{
             width: auto;
-            height: 70px;
+            height: 0px;
             max-width: 220px;
             object-fit: contain;
           }}
