@@ -377,16 +377,12 @@ def parse_blastx(tsv_text: str) -> list[dict[str, object]]:
             query_id,
             subject_id,
             percent_identity,
-            alignment_length,
             query_start,
             query_end,
             subject_start,
             subject_end,
-            query_frame,
             query_alignment,
             subject_alignment,
-            evalue,
-            bitscore,
         ) = row
 
         hit = {
@@ -396,13 +392,10 @@ def parse_blastx(tsv_text: str) -> list[dict[str, object]]:
             "query_end": int(query_end),
             "subject_start": int(subject_start),
             "subject_end": int(subject_end),
-            "query_frame": int(query_frame),
             "query_alignment": query_alignment.upper(),
             "subject_alignment": subject_alignment.upper(),
             "percent_identity": float(percent_identity),
             "alignment_length": int(alignment_length),
-            "evalue": float(evalue),
-            "bitscore": float(bitscore),
         }
 
         previous = best_hits.get(query_id)
