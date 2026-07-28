@@ -901,31 +901,31 @@ if "pipeline_results" in st.session_state:
         use_container_width=True,
     )
 
-st.subheader("Other downloads")
+    st.subheader("Other downloads")
 
-st.download_button(
-    "Download Combined FASTA",
-    data=results["combined_fasta"],
-    file_name="combined.fasta",
-    mime="text/plain",
-    key="download_combined_fasta",
-    use_container_width=True,
-)
+    st.download_button(
+        "Download Combined FASTA",
+        data=results["combined_fasta"],
+        file_name="combined.fasta",
+        mime="text/plain",
+        key="download_combined_fasta",
+        use_container_width=True,
+    )
 
     st.subheader("Sequence Matches")
     if results["minimap_rows"]:
         st.dataframe(
-    [
-        {
-            "query": row["query"],
-            "reference": row["reference"],
-            "query_coverage_percent": row["query_coverage_percent"],
-            "identity_percent": row["identity_percent"],
-        }
-        for row in results["minimap_rows"]
-    ],
-    use_container_width=True,
-)
+            [
+                {
+                    "query": row["query"],
+                    "reference": row["reference"],
+                    "query_coverage_percent": row["query_coverage_percent"],
+                    "identity_percent": row["identity_percent"],
+                }
+                for row in results["minimap_rows"]
+            ],
+            use_container_width=True,
+        )
     else:
         st.warning("No alignments reported.")
 
