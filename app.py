@@ -377,12 +377,16 @@ def parse_blastx(tsv_text: str) -> list[dict[str, object]]:
             query_id,
             subject_id,
             percent_identity,
+            alignment_length,
             query_start,
             query_end,
             subject_start,
             subject_end,
+            query_frame,
             query_alignment,
             subject_alignment,
+            evalue,
+            bitscore,
         ) = row
 
         hit = {
@@ -392,16 +396,18 @@ def parse_blastx(tsv_text: str) -> list[dict[str, object]]:
             "query_end": int(query_end),
             "subject_start": int(subject_start),
             "subject_end": int(subject_end),
+            "query_frame": int(query_frame),
             "query_alignment": query_alignment.upper(),
             "subject_alignment": subject_alignment.upper(),
             "percent_identity": float(percent_identity),
             "alignment_length": int(alignment_length),
+            "evalue": float(evalue),
+            "bitscore": float(bitscore),
         }
 
         previous = best_hits.get(query_id)
 
-        # BLAST bit score is the primary measure of alignment quality.
-        # Ties are resolved by E-value, alignment length, and identity.
+        # These values are retained internally only to choose the best hit.
         hit_rank = (
             hit["bitscore"],
             -hit["evalue"],
@@ -725,10 +731,12 @@ blast_reference = st.file_uploader(
     help="This is a protein reference used to identify mutations.",
 )
 
+# Fixed pipeline settings.
+minimap_preset = "map-ont"
+threads = 2
+
 with st.sidebar:
     st.header("Pipeline settings")
-    minimap_preset = "map-ont"
-    )
     evalue_limit = st.number_input(
         "BLASTX E-value cutoff",
         min_value=0.0,
@@ -742,7 +750,6 @@ with st.sidebar:
         value=1,
         step=1,
     )
-    threads = 2
 
 if seq_files:
     st.write(f"**Sequence files selected:** {len(seq_files)}")
@@ -855,11 +862,8 @@ if st.button("Run sequence identification analysis, then identify potential muta
                 [
                     "sequence",
                     "reference",
-                    "frame",
                     "identity",
                     "alignment_length",
-                    "evalue",
-                    "bitscore",
                     "mutations",
                 ],
             ),
