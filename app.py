@@ -893,8 +893,6 @@ if "pipeline_results" in st.session_state:
 
     st.success(
         f"Processed {results['sequence_count']} sequences. "
-        f"minimap2 reported {len(results['minimap_rows'])} alignments and "
-        f"BLASTX retained {len(results['substitution_rows'])} best hits."
     )
 
     st.subheader("Report")
