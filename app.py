@@ -740,7 +740,7 @@ footer {{ margin-top: 20px; color: var(--muted); font-size: 13px; }}
 
 sample_name = st.text_input(
     "Sample name",
-    placeholder="e.g. Enzyme_variant_01",
+    placeholder="Sample name",
     help="Shown in the report and used in the downloaded report filename.",
 )
 
