@@ -790,8 +790,8 @@ if seq_files:
 
 if not sample_name.strip() or not seq_files or minimap_reference is None or blast_reference is None:
     st.info(
-        "Enter a sample name, then upload the `.seq` folder, the nucleotide "
-        "minimap2 reference, and the separate protein BLASTX reference."
+        "Enter a sample name, then upload the `.seq` folder, the DNA reference, "
+        "and the separate protein reference."
     )
     st.stop()
 
